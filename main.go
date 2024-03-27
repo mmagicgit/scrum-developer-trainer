@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"io"
 	"math/rand"
 	"net/http"
@@ -13,29 +14,70 @@ import (
 )
 
 func main() {
-	stringArray := readFile()
+	stringArray := fetchContent()
 	questions := buildQuestions(stringArray)
 	shuffle(questions)
-	ask(questions)
+	errors := buildQuestionsFromErrorFile(questions)
+	shuffle(errors)
+	startAsking(questions, errors)
 }
 
-func ask(questions []Question) {
-	for _, q := range questions {
-		fmt.Println("\n" + q.Query)
-		expected := ""
-		for index, answer := range q.Answer {
-			fmt.Println(index+1, answer.Answer)
-			if answer.Correct {
-				expected += strconv.Itoa(index + 1)
-			}
+func buildQuestionsFromErrorFile(questions []Question) []Question {
+	errorFileContent := readFile("errors.md")
+	errors := make([]Question, 0)
+	for _, line := range errorFileContent {
+		idx := slices.IndexFunc(questions, func(q Question) bool { return q.Query == line })
+		errors = append(errors, questions[idx])
+	}
+	return errors
+}
+
+func startAsking(questions []Question, errors []Question) {
+	for i := 0; i < len(questions); i++ {
+		ask(questions[i])
+		if i < len(errors) {
+			ask(errors[i])
 		}
-		scanner := bufio.NewScanner(os.Stdin)
-		scanner.Scan()
-		if scanner.Text() == expected {
-			fmt.Println("Correct")
-		} else {
-			fmt.Println("False", "("+expected+")")
+	}
+}
+
+func ask(q Question) {
+	fmt.Println("\n" + q.Query)
+	expected := ""
+	for index, answer := range q.Answer {
+		fmt.Println(index+1, answer.Answer)
+		if answer.Correct {
+			expected += strconv.Itoa(index + 1)
 		}
+	}
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	if scanner.Text() == expected {
+		fmt.Println("Correct")
+	} else {
+		fmt.Println("False", "("+expected+")")
+		saveError(q.Query)
+	}
+}
+
+func saveError(query string) {
+	f, err := os.OpenFile("errors.md", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	file, err2 := os.ReadFile("errors.md")
+	if err2 != nil {
+		panic(err2)
+	}
+	content := string(file)
+	if strings.Contains(content, query) {
+		return
+	}
+	_, err = f.WriteString(query + "\n")
+	if err != nil {
+		panic(err)
 	}
 }
 
@@ -64,7 +106,7 @@ func buildQuestions(stringArray []string) []Question {
 	return questions
 }
 
-func readFile() []string {
+func fetchContent() []string {
 	name := "downloaded-questions.md"
 	out, _ := os.Create(name)
 	defer out.Close()
@@ -74,6 +116,10 @@ func readFile() []string {
 
 	_, _ = io.Copy(out, resp.Body)
 
+	return readFile(name)
+}
+
+func readFile(name string) []string {
 	file, _ := os.Open(name)
 	defer file.Close()
 
