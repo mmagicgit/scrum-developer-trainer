@@ -14,29 +14,20 @@ import (
 )
 
 func main() {
-	stringArray := fetchContent()
-	questions := buildQuestions(stringArray)
-	shuffle(questions)
-	errors := buildQuestionsFromErrorFile(questions)
-	shuffle(errors)
-	startAsking(questions, errors)
+	content := fetchContent()
+	startAsking(content)
 }
 
-func buildQuestionsFromErrorFile(questions []Question) []Question {
-	errorFileContent := readFile("errors.md")
-	errors := make([]Question, 0)
-	for _, line := range errorFileContent {
-		idx := slices.IndexFunc(questions, func(q Question) bool { return q.Query == line })
-		errors = append(errors, questions[idx])
-	}
-	return errors
-}
+func startAsking(content []string) {
+	for true {
+		questions := buildQuestions(content)
+		shuffle(questions)
+		errors := buildQuestionsFromErrorFile(questions)
+		shuffle(errors)
 
-func startAsking(questions []Question, errors []Question) {
-	for i := 0; i < len(questions); i++ {
-		ask(questions[i])
-		if i < len(errors) {
-			ask(errors[i])
+		ask(questions[0])
+		if 0 < len(errors) {
+			ask(errors[0])
 		}
 	}
 }
@@ -104,6 +95,16 @@ func buildQuestions(stringArray []string) []Question {
 		}
 	}
 	return questions
+}
+
+func buildQuestionsFromErrorFile(questions []Question) []Question {
+	errorFileContent := readFile("errors.md")
+	errors := make([]Question, 0)
+	for _, line := range errorFileContent {
+		idx := slices.IndexFunc(questions, func(q Question) bool { return q.Query == line })
+		errors = append(errors, questions[idx])
+	}
+	return errors
 }
 
 func fetchContent() []string {
